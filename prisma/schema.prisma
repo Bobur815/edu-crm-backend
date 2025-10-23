@@ -1,0 +1,232 @@
+// prisma/schema.prisma
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+//// Enums
+
+enum UserRole {
+    ADMIN
+    MANAGER
+    TEACHER
+    STUDENT
+}
+
+enum Gender {
+    MALE
+    FEMALE
+}
+
+enum BranchStatus {
+    ACTIVE
+    INACTIVE
+}
+
+enum CourseStatus {
+    ACTIVE
+    DRAFT
+    ARCHIVED
+}
+
+enum TeacherStatus {
+    ACTIVE
+    INACTIVE
+}
+
+enum StudentStatus {
+    ACTIVE
+    INACTIVE
+}
+
+enum GroupStatus {
+    PLANNED
+    ONGOING
+    COMPLETED
+}
+
+enum DayOfWeek {
+    MON
+    TUE
+    WED
+    THU
+    FRI
+    SAT
+    SUN
+}
+
+//// Models
+
+model Branch {
+    id       Int          @id @default(autoincrement())
+    name     String
+    region   String?
+    district String?
+    address  String?
+    phone    String?
+    status   BranchStatus @default(ACTIVE)
+
+    // Relations
+    rooms        Room[]
+    users        User[]
+    categories   CourseCategory[]
+    courses      Course[]
+    teachers     Teacher[]
+    students     Student[]
+    groups       Group[]
+    StudentGroup StudentGroup[]
+
+    @@map("branches")
+}
+
+model Room {
+    id       Int    @id @default(autoincrement())
+    branchId Int
+    name     String
+    capacity Int
+
+    // Relations
+    branch Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    groups Group[]
+
+    @@index([branchId])
+    @@map("rooms")
+}
+
+model User {
+    id       Int      @id @default(autoincrement())
+    name     String
+    email    String   @unique
+    phone    String?
+    password String
+    photo    String?
+    role     UserRole
+    branchId Int?
+
+    branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+    @@index([branchId])
+    @@map("users")
+}
+
+model CourseCategory {
+    id       Int    @id @default(autoincrement())
+    name     String
+    branchId Int
+
+    branch  Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    courses Course[]
+
+    @@index([branchId])
+    @@unique([branchId, name])
+    @@map("course_category")
+}
+
+model Course {
+    id              Int          @id @default(autoincrement())
+    branchId        Int
+    categoryId      Int
+    name            String
+    status          CourseStatus @default(ACTIVE)
+    price           Float        @default(0)
+    duration_hours  Int          @default(0)
+    duration_months Int          @default(0)
+    description     String?      @db.Text
+
+    branch   Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    category CourseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+    groups   Group[]
+
+    @@index([branchId])
+    @@index([categoryId])
+    @@map("courses")
+}
+
+model Teacher {
+    id          Int           @id @default(autoincrement())
+    phone       String
+    email       String?       @unique
+    fullname    String
+    gender      Gender
+    photo       String?
+    birthday    DateTime?     @db.Timestamp(6)
+    password    String?
+    branchId    Int
+    status      TeacherStatus @default(ACTIVE)
+    description String?       @db.Text
+    // coin removed ✔
+
+    branch Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    groups Group[]
+
+    @@index([branchId])
+    @@map("teachers")
+}
+
+model Student {
+    id            String        @id @default(uuid())
+    fullname      String
+    email         String?       @unique
+    password      String?
+    phone         String?
+    gender        Gender?
+    photo         String?
+    birthday      DateTime?     @db.Date
+    status        StudentStatus @default(ACTIVE)
+    other_details Json?
+    branchId      Int
+
+    branch        Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    studentGroups StudentGroup[]
+
+    @@index([branchId])
+    @@map("students")
+}
+
+model Group {
+    id         Int         @id @default(autoincrement())
+    name       String
+    courseId   Int
+    roomId     Int?
+    teacherId  Int?
+    status     GroupStatus @default(PLANNED)
+    days       DayOfWeek[] // Postgres enum[]
+    start_time DateTime?   @db.Time(6) // time without time zone
+    start_date DateTime?   @db.Date
+    end_date   DateTime?   @db.Date
+    branchId   Int
+
+    course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+    room    Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+    teacher Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+    branch  Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+    students StudentGroup[]
+
+    @@index([courseId])
+    @@index([roomId])
+    @@index([teacherId])
+    @@index([branchId])
+    @@map("groups")
+}
+
+model StudentGroup {
+    id        Int    @id @default(autoincrement())
+    groupId   Int
+    studentId String
+    branchId  Int
+
+    group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+    student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+    branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, studentId]) // a student can be in a group once
+    @@index([groupId])
+    @@index([studentId])
+    @@index([branchId])
+    @@map("student_group")
+}
